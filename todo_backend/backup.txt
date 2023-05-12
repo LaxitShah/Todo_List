@@ -1,0 +1,132 @@
+// Importing required modules
+const express = require('express');
+const bodyParser = require('body-parser');
+const db = require("./models/");
+const todoModel = require('./models/todo');
+const cors = require("cors")
+
+// Creating an Express application
+const app = express();
+app.use(cors())
+// Setting up body-parser middleware to parse incoming JSON data
+app.use(bodyParser.json());
+
+// Setting up the server port
+const PORT = process.env.PORT || 3000;
+
+//to return 200 status code ,on success.use for success response
+function success(res, payload) {
+    return res.status(200).json(payload)//payload here means data that is there in the todo list say items
+  }
+
+//Welcome message
+app.get('/', (req, res) => {
+    res.send('Welcome to the Todo List API!');
+  });
+//server side
+//By defining the route "/todos" with the HTTP GET method and using the find() method on the Mongoose model, 
+//the code retrieves all the todos from the database
+  app.get("/todos",async (req,res,next)=>{
+      try{
+        //{} it represent to retrieve all the function without any specific conditions
+        const todos=await db.Todo.find({})
+        return success(res,todos);
+    }
+    catch(err){
+        next({status:400,message:"failed to get todo's"})
+    }
+})
+//client side
+//it will create a todo list 
+const jsonParser=bodyParser.json();
+app.post("/todos",jsonParser,async (req,res,next)=>{
+    try{
+        //it creates a new todo row and saves the value to req.body
+        //req.body contains submitted by the client .it is used for creating and updating the resources
+        const obj = new todoModel({
+            task: req.body.message,
+            completed: true
+        });        
+        const todo = await obj.save();
+        // const todo=await db.Todo.create(req.body)
+        return success(res,todo);
+    }
+    catch(err){
+        next({status:400,message:"failed to create todo"});
+        
+        console.log(err);
+    }
+})
+
+// "/todos/:id", the ":id" parameter represents the unique identifier of the todo item to be updated.
+//put router  handle updating a specific todo item identified by its :id
+
+app.put("/todos/:id",async(req,res,next)=>{
+    try{
+        //built in method use to update the a row(document) by its unique identifier and update its content
+        //it takes three parameters:
+        /*
+            id:of the document to be updated
+            req.params.id :represent the value of :id parameter in the route url
+                            eg: 
+                            url/items/1
+                            url/items/2
+                            url/items/:id
+                            : it is used to specify the variable 
+            third parameter is optional
+        */
+       //req.body is an object that contains the updated todo item,sent by client to include change and apply to document(row)
+       //{new:true} ensures that it returns modified data as the result of updated operations 
+       //without this it would return the original document without the update
+        const todo=await db.Todo.findByIdAndUpdate(req.params.id,req.body,{new:true,
+        })  
+        
+        return success(res,todo)
+    }
+    catch(err){
+        next({status:400,message:"failed to update todo"})
+    }
+})
+
+/**
+ * the method finds the function by its id and removes it 
+ * next() is a function used to pass control to the next middleware function in the request-response cycle.
+ *  It is typically used within middleware functions to delegate the handling of the current request to the 
+ * next middleware function or final router  in the stack.
+ * it is also use for error handling
+ */
+app.delete("/todos/:id",async(req,res,next)=>{
+    try{
+        await db.Todo.findByIdAndRemove(req.params.id)
+        return success(res,"todo deleted!!")
+    }
+    catch(err){
+
+        /**here next will pass the error to the next middleware function and handle error effectively */
+        next({status:400,message:"failed to delete todo"})
+    }
+})
+
+/**
+ * it is used to handle the error that occurs during the processing of request in application
+ * app.use(),it is middleware function that will be executed for all the incoming request
+ * /** it takes 4 parameters:
+ *          err,req,res and next
+ * response is used to send a json response containing information about the error 
+ * status() is called on response object to set the http status code of response
+ * 
+ * json() method is used to send a json response which would include status code and the message which descries the message
+ * if the status and message are not provided then default values are added
+ */
+app.use((err,req,res,next)=>{
+    return res.status(err.status||400).json({
+        status:err.status||400,
+        message:err.message||"there was an error processing request",
+    })
+})
+
+// Starting the server
+app.listen(PORT, () => {
+  console.log(`Server is listening on port ${PORT}`);
+});
+
